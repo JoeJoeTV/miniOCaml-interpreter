@@ -31,11 +31,11 @@ let lex s : token list =
         |false -> lex (i+1) (LP::l) end
       |')' -> lex (i+1) (RP::l)
       |'=' -> lex (i+1) (EQ::l)
-      |':' when lc_letter (get (i+1)) -> lex_id (i+1) 0 (COL::l)
+      |':' -> lex (i+1) (COL::l)
       |c when whitespace c -> lex (i+1) l
       |c when digit c -> lex_num (i+1) (char2digit c) l
       |c when lc_letter c -> lex_id (i+1) 1 l
-      |_ -> failwith "DED1"
+      |c -> failwith ("DED1: " ^ String.make 1 c)
 
   and lex_ct i l d = match exhausted i with
     |true -> failwith "Comment: Comment reached EOL (Missing '*)' ?)"
