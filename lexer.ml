@@ -26,7 +26,9 @@ let lex s : token list =
       |'<' -> if (verify (i+1) '=') then lex (i+2) (LEQ::l) else failwith "Illegal Character"
       |'+' -> lex (i+1) (ADD::l)
       |'*' -> lex (i+1) (MUL::l)
-      |'(' -> lex (i+1) (LP::l)
+      |'(' -> begin match verify (i+1) '*' with(*lex (i+1) (LP::l)*)
+        |true -> lex_ct (i+1) l 1
+        |false -> lex (i+1) (LP::l) end
       |')' -> lex (i+1) (RP::l)
       |'=' -> lex (i+1) (EQ::l)
       |':' when lc_letter (get (i+1)) -> lex_id (i+1) 0 l
@@ -34,6 +36,19 @@ let lex s : token list =
       |c when digit c -> lex_num (i+1) (char2digit c) l
       |c when lc_letter c -> lex_id (i+1) 1 l
       |_ -> failwith "DED1"
+
+  and lex_ct i l d = match exhausted i with
+    |true -> failwith "Comment: Comment reached EOL (Missing '*)' ?)"
+    |false -> lex_ct' i l d
+
+  and lex_ct' i l d = match get i with
+    |'*' -> begin match verify (i+1) ')' with
+      |true -> if d <= 1 then lex (i+2) l else lex_ct (i+1) l (d-1)
+      |false -> lex_ct (i+1) l d end
+    |'(' -> begin match verify (i+1) '*' with
+      |true -> lex_ct (i+1) l (d+1)
+      |false -> lex_ct (i+1) l d end
+    |_ -> lex_ct (i+1) l d
 
   and lex_num i n l = if exhausted i then lex_num' i n l
     else match get i with
