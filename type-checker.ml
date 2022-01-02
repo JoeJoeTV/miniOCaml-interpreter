@@ -25,7 +25,7 @@ let rec lookup (env : ('a,'b) env) a =  match env with
   | (a',b) :: env -> if a = a' then Some b else lookup env a
   | [] -> None
 
-let fac = 
+(*let fac = 
   fun n -> 
     let rec fac' a = 
       fun n -> 
@@ -60,7 +60,7 @@ let mfac = Let("fac",
 
 let rec ty2str t : string =
   match t with
-    |
+    |*)
 
 
 
