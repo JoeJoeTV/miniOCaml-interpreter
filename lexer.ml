@@ -1,6 +1,6 @@
 (*Types*)
 type const = BCON of bool | ICON of int
-type token = ADD | SUB | MUL | LP | RP | EQ | LEQ | ARR
+type token = COL | ADD | SUB | MUL | LP | RP | EQ | LEQ | ARR
   | IF | THEN | ELSE | LAM | LET | IN | REC
   | CON of const | VAR of string | BOOL | INT
 
@@ -31,7 +31,7 @@ let lex s : token list =
         |false -> lex (i+1) (LP::l) end
       |')' -> lex (i+1) (RP::l)
       |'=' -> lex (i+1) (EQ::l)
-      |':' when lc_letter (get (i+1)) -> lex_id (i+1) 0 l
+      |':' when lc_letter (get (i+1)) -> lex_id (i+1) 0 (COL::l)
       |c when whitespace c -> lex (i+1) l
       |c when digit c -> lex_num (i+1) (char2digit c) l
       |c when lc_letter c -> lex_id (i+1) 1 l
