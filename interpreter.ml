@@ -88,6 +88,31 @@ let tlist2str l =
 
   in "[" ^ (tlist2str l) ^ "]"
 
+let int2str n =
+  let digit2str d = if (d >= 0) && (d < 10) then String.make 1 (Char.chr ((Char.code '0') + d)) else failwith "[Digit2Str] Parameter is not a digit(0-9)"
+  in let rec int2str n = if n < 1 then "" else (int2str (n / 10)) ^ (digit2str (n mod 10))
+  in int2str n
+
+let val2str v =
+  let bool2str b = match b with
+    |true -> "true"
+    |false -> "false"
+
+  in let rec val2str v = match v with
+    |Bval(b) -> bool2str b
+    |Ival(n) -> int2str n
+    |Closure(v, e, env) -> "(" ^ v ^ ", <exp>, <env>)"
+    |Rclosure(var1, var2, e, env) -> "(" ^ var1 ^ "," ^ var2 ^ ", <exp>, <env>)"
+    |Pair(v1, v2) -> "(" ^ (val2str v1) ^ ", " ^ (val2str v2) ^ ")"
+
+  in val2str v
+
+let op2str o = match o with
+  |Add -> "+"
+  |Sub -> "-"
+  |Mul -> "*"
+  |Leq -> "<="
+
 (** Lexer **)
 
 (*** Helper Functions ***)
@@ -388,13 +413,13 @@ let eval (env : (var, value) env) e =
       |Bval(b) -> begin match b with
         |true -> eval env e2
         |false -> eval env e3 end
-      |v -> failwith "[Eval] If: Expected 'Bool' value, but got: <TODO>" end
+      |v -> failwith ("[Eval] If: Expected 'Bool' value, but got: " ^ (val2str v)) end
     |Lam(x, e) |Lamty(x, _, e) -> Closure(x, e, env)
     |Let(x, e1, e2) -> eval (update env x (eval env e1)) e2
     |Letpair(x1, x2, e1, e2) -> begin let v = eval env e1 in
       match v with
         |Pair(v1, v2) -> eval (update (update env x1 v1) x2 v2) e2
-        |v -> failwith "[Eval] Letpair: Expected 'Pair' value, but got: <TODO>" end
+        |v -> failwith ("[Eval] Letpair: Expected 'Pair' value, but got: " ^ (val2str v)) end
     |Letrec(f, x, e1, e2) |Letrecty(f, x, _, _, e1, e2) -> eval (update env f (Rclosure(f, x, e1, env))) e2
   
   and eval_op op v1 v2 = match op, v1, v2 with
@@ -402,12 +427,12 @@ let eval (env : (var, value) env) e =
     |Sub, Ival(n1), Ival(n2) -> Ival(n1 - n2)
     |Mul, Ival(n1), Ival(n2) -> Ival(n1 * n2)
     |Leq, Ival(n1), Ival(n2) -> Bval(n1 <= n2)
-    |_, _, _ -> failwith "[Eval] Oapp: Illegal values for operation <TODO>"
+    |o, _, _ -> failwith ("[Eval] Oapp: Illegal values for operation " ^ (op2str o))
 
   and eval_fun v1 v2 = match v1 with
     |Closure(x, e, env) -> eval (update env x v2) e
     |Rclosure(f, x, e, env) -> eval (update (update env x v2) f v1) e
-    |e -> failwith "[Eval] Expression is not a function: <TODO>"
+    |v -> failwith ("[Eval] Fapp: Expected function, got: " ^ (val2str v))
 
 in eval env e
 
