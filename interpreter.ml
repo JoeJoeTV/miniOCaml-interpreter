@@ -6,11 +6,11 @@
 
 (* Types *)
 type const = BCON of bool | ICON of int
-type token = COL | ADD | SUB | MUL | LP | RP | EQ | LEQ | ARR
+type token = COM | COL | ADD | SUB | MUL | LP | RP | EQ | LEQ | ARR
   | IF | THEN | ELSE | LAM | LET | IN | REC
   | CON of const | VAR of string | BOOL | INT
 
-type ty  = Int | Bool | Arrow of ty * ty
+type ty  = Int | Bool | Arrow of ty * ty | Pair of ty * ty
 type var = string
 type con = Bcon of bool | Icon of int
 type op  = Add | Sub | Mul | Leq
@@ -23,12 +23,15 @@ type exp = Var of var | Con of con
   | Let of var * exp * exp
   | Letrec of var * var * exp * exp
   | Letrecty of var * var * ty * ty * exp * exp
+  | Pairexp of exp * exp
+  | Letpair of var * var * exp * exp
 
 type ('a,'b) env = ('a * 'b) list
 
 type value = Bval of bool | Ival of int
   | Closure of var * exp * (var, value) env
   | Rclosure of var * var * exp * (var, value) env
+  | Pair of value * value
 
 (* Functions *)
 
@@ -44,31 +47,15 @@ let ty2str ty =
   let rec ty2str ty = match ty with
     |Int -> "int"
     |Bool -> "bool"
+    |Pair(ty1, ty2) -> (ty2str ty1) ^ " * " ^ (ty2str ty2)
     |Arrow(ty1, ty2) -> (ty2str ty1) ^ " -> " ^ (ty2str ty2)
   in ty2str ty
-
-let tlist2str l =
-  let rec token2str tk =
-    match tk with
-      |BOOL -> "BOOL"
-      |INT -> "INT"
-      |ARR -> "ARR"
-      |LP -> "LP"
-      |RP -> "RP"
-      |_ -> "#"
-            
-  in let rec tlist2str l =
-    match l with
-      |tk::[] -> token2str tk
-      |tk::l -> (token2str tk) ^ "; " ^ (tlist2str l)
-      |[] -> ""
-
-  in "[" ^ (tlist2str l) ^ "]"
 
 let fsttoken2str l =
   match l with
     |tk::l -> begin
       match tk with
+        |COM -> ","
         |COL -> ":"
         |ADD -> "+"
         |SUB -> "-"
@@ -91,6 +78,15 @@ let fsttoken2str l =
         |CON(ICON(n)) -> "<int>" 
         |VAR(v) -> v end
     |[] -> "#"
+
+let tlist2str l =            
+  let rec tlist2str l =
+    match l with
+      |tk::[] -> fsttoken2str [tk]
+      |tk::l -> (fsttoken2str [tk]) ^ "; " ^ (tlist2str l)
+      |[] -> ""
+
+  in "[" ^ (tlist2str l) ^ "]"
 
 (** Lexer **)
 
@@ -120,6 +116,7 @@ let lex s : token list =
         |true -> lex_ct (i+1) l 1
         |false -> lex (i+1) (LP::l) end
       |')' -> lex (i+1) (RP::l)
+      |',' -> lex (i+1) (COM::l)
       |'=' -> lex (i+1) (EQ::l)
       |':' -> lex (i+1) (COL::l)
       |c when whitespace c -> lex (i+1) l
@@ -182,6 +179,12 @@ let parsetype l : ty * (token list) =
       let (t1, l) = pty l
       in let (t2, l) = ty' t1 l
       in ((Arrow(t, t2)), l) end
+    |tk -> pairty t l
+
+  and pairty t l = match l with
+    |MUL::l -> begin
+      let (t1, l) = pty l in
+      ty' (Pair(t, t1)) l end
     |_ -> (t, l)
   
   and pty l = match l with
@@ -216,6 +219,13 @@ let parse l : exp * token list =
           let (e2, l) = exp l in
           (Let(x, e1, e2), l) end
         |l -> failwith ("[Parse] Let: Unexpected Token: Expected 'in', but got " ^ (fsttoken2str l)) end
+    |LET::LP::VAR(x1)::COM::VAR(x2)::RP::EQ::l -> begin
+      let (e1, l) = exp l in
+      match l with
+        |IN::l -> begin
+          let (e2, l) = exp l in
+          (Letpair(x1, x2, e1, e2), l) end
+        |l -> failwith ("[Parse] Letpair: Unexpected Token: Expected 'in', but got " ^ (fsttoken2str l)) end
     |LET::REC::VAR(f)::VAR(x)::EQ::l -> begin
       let (e1, l) = exp l in
       match l with
@@ -309,8 +319,13 @@ let parse l : exp * token list =
       let (e, l) = exp l
       in begin match l with
         |RP::l -> (e, l)
-        |_ -> failwith ("[Parse] Missing parenthesis: Expected ')', but got " ^ (fsttoken2str l)) end end
-    |l -> failwith ("[Parse] Unexpected Token: " ^ (fsttoken2str l))
+        |COM::l -> begin
+          let (e2, l) = exp l in
+          match l with
+            |RP::l -> (Pairexp(e, e2), l)
+            |l -> failwith ("[Parse] Missing parenthesis: Expected ')', but got " ^ (fsttoken2str l)) end
+        |l -> failwith ("[Parse] Missing parenthesis: Expected ')' or ',', but got " ^ (fsttoken2str l)) end end
+    |l -> failwith ("[Parse] Unexpected Token: " ^ (tlist2str l))
 
   in exp l
 
@@ -334,6 +349,7 @@ let check env e : ty =
       |None -> failwith ("[Check] Var: Type for variable " ^ x ^ " not defined") end
     |Con(Bcon(b)) -> Bool
     |Con(Icon(i)) -> Int
+    |Pairexp(e1, e2) -> Pair((check env e1), (check env e2))
     |Oapp(o, e1, e2) -> check_op o (check env e1) (check env e2)
     |Fapp(e1, e2) -> check_fun (check env e1) (check env e2)
     |If(e1, e2, e3) -> begin match (check env e1) with
@@ -345,6 +361,10 @@ let check env e : ty =
     |Lam(x, e) -> failwith "[Check] Lam: Missing type declaration for parameter"
     |Lamty(x, t, e) -> Arrow (t, check (update env x t) e)
     |Let(x, e1, e2) -> check (update env x (check env e1)) e2
+    |Letpair(x1, x2, e1, e2) -> begin let ty = check env e1 in
+      match ty with
+        |Pair(ty1, ty2) -> check (update (update env x1 ty1) x2 ty2) e2
+        |ty -> failwith ("[Check] Letpair: Expected expression of type 'Pair', got expression of type " ^ (ty2str ty)) end
     |Letrec(f, x, e1, e2) -> failwith "[Check] Lam: Missing type declarations for parameter and return value"
     |Letrecty(f, x, t1, t2, e1, e2) -> let t2' = (check (update (update env x t1) f (Arrow(t1, t2))) e1) in
       if t2 = t2' then check (update env f (Arrow(t1, t2))) e2
@@ -361,15 +381,20 @@ let eval (env : (var, value) env) e =
       |None -> failwith ("[Eval] Undefined Variable: " ^ x) end
     |Con(Bcon b) -> Bval b
     |Con(Icon n) -> Ival n
+    |Pairexp(e1, e2) -> Pair((eval env e1), (eval env e2))
     |Oapp(o, e1, e2) -> eval_op o (eval env e1) (eval env e2)
     |Fapp(e1, e2) -> eval_fun (eval env e1) (eval env e2)
     |If(e1, e2, e3) -> begin match eval env e1 with
       |Bval(b) -> begin match b with
         |true -> eval env e2
         |false -> eval env e3 end
-      |e -> failwith "[Eval] If: Value is not a boolean value: TODO" end
+      |v -> failwith "[Eval] If: Expected 'Bool' value, but got: <TODO>" end
     |Lam(x, e) |Lamty(x, _, e) -> Closure(x, e, env)
     |Let(x, e1, e2) -> eval (update env x (eval env e1)) e2
+    |Letpair(x1, x2, e1, e2) -> begin let v = eval env e1 in
+      match v with
+        |Pair(v1, v2) -> eval (update (update env x1 v1) x2 v2) e2
+        |v -> failwith "[Eval] Letpair: Expected 'Pair' value, but got: <TODO>" end
     |Letrec(f, x, e1, e2) |Letrecty(f, x, _, _, e1, e2) -> eval (update env f (Rclosure(f, x, e1, env))) e2
   
   and eval_op op v1 v2 = match op, v1, v2 with
