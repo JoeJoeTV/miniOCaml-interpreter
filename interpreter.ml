@@ -412,4 +412,4 @@ let interpretStr s =
       |[] -> e
       |_ -> failwith "[interpretStr] Token list not empty" end in
   let ty = check empty e in
-  (ty, (eval empty e))
+  ((ty2str ty), (eval empty e))
