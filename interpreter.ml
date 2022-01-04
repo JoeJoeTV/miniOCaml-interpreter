@@ -259,7 +259,7 @@ let parse l : exp * token list =
       match l with
         |IN::l -> begin
           let (e2, l) = exp l in
-          (Let(x, e1, e2), l) end
+          (Letrec(f, x, e1, e2), l) end
         |l -> failwith ("[Parse] Letrec: Unexpected Token: Expected 'in', but got " ^ (fsttoken2str l)) end
     |LET::REC::VAR(f)::LP::VAR(x)::COL::l -> begin
       let (ty1, l) = parsetype l in
