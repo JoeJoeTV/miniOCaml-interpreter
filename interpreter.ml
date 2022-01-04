@@ -2,6 +2,9 @@
   Name: interpreter.ml
   Description: Interpreter for the MiniOCaml "language"
   Author: JoeJoeTV
+  Extra Features:
+    - Lexer supports Comments
+    - Intepreter supports Pairs
 *)
 
 (* Types *)
