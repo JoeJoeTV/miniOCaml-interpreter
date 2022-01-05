@@ -1,0 +1,2 @@
+(executable
+ (name cli_interpreter))

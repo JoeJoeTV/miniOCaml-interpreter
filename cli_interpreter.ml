@@ -1,6 +1,6 @@
 (*
-  Name: interpreter.ml
-  Description: Interpreter for the MiniOCaml "language"
+  Name: cli_interpreter.ml
+  Description: Command Line Interpreter for the MiniOCaml "language"
   Author: JoeJoeTV
   Extra Features:
     - Lexer supports Comments
