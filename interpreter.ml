@@ -321,8 +321,8 @@ let parse l : exp * token list =
 
   and mexp' e l = match l with
     |MUL::l -> begin
-      let (e1, l) = mexp l
-      in sexp' (Oapp(Mul, e, e1)) l end
+      let (e1, l) = aexp l
+      in mexp' (Oapp(Mul, e, e1)) l end
     |_ -> (e, l)
 
   and aexp l = 
